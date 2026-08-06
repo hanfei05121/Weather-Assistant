@@ -11,6 +11,14 @@
     "backgroundColor": "#000000",
     "backgroundTextStyle": "light"
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于获取您当前所在城市以显示天气预报"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ],
   "style": "v2",
   "rendererOptions": {
     "skyline": {
