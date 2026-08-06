@@ -1,6 +1,7 @@
 // pages/weather/weather.ts
 import { getWeatherNow, getWeather7d, getWeather24h } from '../../utils/api'
 import { getCurrentCity } from '../../utils/storage'
+import { ThreeWeatherParticles } from '../../utils/three-particles'
 
 interface WeatherData {
   city: string
@@ -42,6 +43,8 @@ interface DailyData {
 }
 
 Page({
+  particles: null as ThreeWeatherParticles | null,
+
   data: {
     currentCity: '南京',
     weatherData: null as WeatherData | null,
@@ -57,11 +60,38 @@ Page({
     this.loadWeatherData()
   },
 
+  onReady() {
+    const query = wx.createSelectorQuery().in(this)
+    query.select('#weather-canvas').fields({ node: true, size: true }).exec((res: any) => {
+      const info = res && res[0]
+      if (!info || !info.node) return
+      const winInfo: any = (wx as any).getWindowInfo ? (wx as any).getWindowInfo() : wx.getSystemInfoSync()
+      this.particles = new ThreeWeatherParticles()
+      this.particles.init(info.node, info.width, info.height, winInfo.pixelRatio || 2)
+      this.particles.start()
+      if (this.data.weatherData) {
+        this.particles.setWeather(this.data.weatherData.conditionCode)
+      }
+    })
+  },
+
   onShow() {
+    if (this.particles) this.particles.start()
     const currentCity = getCurrentCity()
     if (currentCity !== this.data.currentCity) {
       this.setData({ currentCity })
       this.loadWeatherData()
+    }
+  },
+
+  onHide() {
+    if (this.particles) this.particles.stop()
+  },
+
+  onUnload() {
+    if (this.particles) {
+      this.particles.destroy()
+      this.particles = null
     }
   },
 
@@ -144,6 +174,8 @@ Page({
         currentDate,
         backgroundStyle,
         loading: false
+      }, () => {
+        if (this.particles) this.particles.setWeather(now.icon, parseInt(now.windSpeed) || 0)
       })
     } catch (error) {
       console.error('加载天气数据失败:', error)

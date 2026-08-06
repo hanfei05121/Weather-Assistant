@@ -1,5 +1,7 @@
 <!--pages/weather/weather.wxml-->
 <view class="weather-container" style="background: {{backgroundStyle}}">
+  <!-- 天气粒子特效背景（three.js WebGL） -->
+  <canvas type="webgl" id="weather-canvas" class="weather-canvas"></canvas>
   <!-- 加载状态 -->
   <view class="loading-container" wx:if="{{loading}}">
     <view class="loading-spinner"></view>

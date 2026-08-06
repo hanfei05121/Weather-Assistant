@@ -4,6 +4,23 @@
   color: #ffffff;
 }
 
+/* 粒子特效画布（背景层） */
+.weather-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+.weather-scroll,
+.loading-container,
+.error-container {
+  position: relative;
+  z-index: 1;
+}
+
 .loading-container {
   display: flex;
   flex-direction: column;
