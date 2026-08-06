@@ -1,0 +1,72 @@
+<!--pages/city/city.wxml-->
+<view class="city-container">
+  <!-- 顶部导航栏 -->
+  <view class="nav-bar">
+    <view class="nav-back" bindtap="onBack">
+      <text class="back-icon">←</text>
+    </view>
+    <text class="nav-title">城市管理</text>
+    <view class="nav-right"></view>
+  </view>
+
+  <!-- 搜索框 -->
+  <view class="search-section">
+    <view class="search-box">
+      <text class="search-icon">🔍</text>
+      <input 
+        class="search-input" 
+        placeholder="搜索城市" 
+        value="{{searchKeyword}}"
+        bindinput="onSearchInput"
+        bindfocus="onSearchFocus"
+        bindblur="onSearchBlur"
+      />
+    </view>
+  </view>
+
+  <!-- 搜索结果 -->
+  <view class="search-results" wx:if="{{searchKeyword && searchResults.length > 0}}">
+    <view class="search-result-item" wx:for="{{searchResults}}" wx:key="id" catchtap="onAddCity" data-city="{{item.id}}" data-name="{{item.name}}">
+      <text class="result-name">{{item.name}}</text>
+      <text class="result-info">{{item.adm1}} {{item.adm2}}</text>
+      <text class="result-add">+</text>
+    </view>
+  </view>
+
+  <!-- 搜索无结果提示 -->
+  <view class="search-results" wx:elif="{{searchKeyword && isSearching === false}}">
+    <view class="search-result-item">
+      <text class="result-name">未找到相关城市</text>
+    </view>
+  </view>
+
+  <!-- 当前位置 -->
+  <view class="location-section">
+    <view class="location-item" bindtap="onUseCurrentLocation">
+      <text class="location-icon">📍</text>
+      <text class="location-text">使用当前位置</text>
+    </view>
+  </view>
+
+  <!-- 已添加城市列表 -->
+  <view class="city-list-section">
+    <view class="section-title">已添加城市</view>
+    <view class="city-list">
+      <view class="city-item" wx:for="{{cities}}" wx:key="*this" bindtap="onSelectCity" data-city="{{item}}">
+        <view class="city-info">
+          <text class="city-name">{{item}}</text>
+          <text class="city-current" wx:if="{{item === currentCity}}">当前</text>
+        </view>
+        <view class="city-actions">
+          <text class="city-delete" catchtap="onDeleteCity" data-city="{{item}}">×</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{cities.length === 0}}">
+    <text class="empty-icon">🏙️</text>
+    <text class="empty-text">暂无城市，请添加</text>
+  </view>
+</view>

@@ -1,0 +1,149 @@
+<!--pages/weather/weather.wxml-->
+<view class="weather-container" style="background: {{backgroundStyle}}">
+  <!-- 加载状态 -->
+  <view class="loading-container" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">正在获取天气数据...</text>
+  </view>
+
+  <!-- 错误信息 -->
+  <view class="error-container" wx:elif="{{error}}">
+    <text class="error-text">{{error}}</text>
+    <button class="retry-btn" bindtap="loadWeatherData">重试</button>
+  </view>
+
+  <!-- 天气内容 -->
+  <scroll-view class="weather-scroll" scroll-y wx:else>
+    <!-- 顶部城市和温度 -->
+    <view class="weather-header">
+      <view class="city-info" bindtap="onCityManage">
+        <text class="city-name">{{currentCity}}</text>
+        <text class="city-arrow">▼</text>
+      </view>
+      <text class="current-date">{{currentDate}}</text>
+      
+      <view class="temperature-main">
+        <text class="temperature-value">{{weatherData.temperature}}</text>
+        <text class="temperature-unit">°</text>
+      </view>
+      
+      <text class="weather-condition">{{weatherData.condition}}</text>
+      <text class="temperature-range">最高{{weatherData.high}}° 最低{{weatherData.low}}°</text>
+    </view>
+
+    <!-- 每小时预报 -->
+    <view class="hourly-section">
+      <view class="section-title">每小时天气预报</view>
+      <scroll-view class="hourly-scroll" scroll-x>
+        <view class="hourly-list">
+          <view class="hourly-item" wx:for="{{hourlyData}}" wx:key="hour" bindtap="onHourlyTap" data-index="{{index}}">
+            <text class="hourly-time">{{item.hour}}</text>
+            <image class="hourly-icon" src="/images/weather/{{item.conditionCode}}.svg" mode="aspectFit"></image>
+            <text class="hourly-temp">{{item.temperature}}°</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 7天预报 -->
+    <view class="daily-section">
+      <view class="section-title">7天天气预报</view>
+      <view class="daily-list">
+        <view class="daily-item" wx:for="{{dailyData}}" wx:key="date" bindtap="onDailyTap" data-index="{{index}}">
+          <text class="daily-weekday">{{item.weekDay}}</text>
+          <image class="daily-icon" src="/images/weather/{{item.conditionCode}}.svg" mode="aspectFit"></image>
+          <text class="daily-condition">{{item.condition}}</text>
+          <view class="daily-temp-range">
+            <text class="daily-temp-low">{{item.low}}°</text>
+            <view class="temp-bar">
+              <view class="temp-bar-fill" style="width: {{(item.high - item.low) * 2}}px"></view>
+            </view>
+            <text class="daily-temp-high">{{item.high}}°</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 天气详情模块 -->
+    <view class="detail-section">
+      <view class="detail-grid">
+        <!-- 体感温度 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="feelslike">
+          <view class="detail-header">
+            <text class="detail-title">体感温度</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.feelsLike}}</text>
+            <text class="detail-unit">°</text>
+          </view>
+        </view>
+
+        <!-- 湿度 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="humidity">
+          <view class="detail-header">
+            <text class="detail-title">湿度</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.humidity}}</text>
+            <text class="detail-unit">%</text>
+          </view>
+        </view>
+
+        <!-- 风 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="wind">
+          <view class="detail-header">
+            <text class="detail-title">风</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.windSpeed}}</text>
+            <text class="detail-unit">km/h {{weatherData.windDir}}</text>
+          </view>
+        </view>
+
+        <!-- 日出日落 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="sun">
+          <view class="detail-header">
+            <text class="detail-title">日出日落</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.sunrise}}</text>
+            <text class="detail-unit">日出</text>
+          </view>
+        </view>
+
+        <!-- 能见度 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="visibility">
+          <view class="detail-header">
+            <text class="detail-title">能见度</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.visibility}}</text>
+            <text class="detail-unit">km</text>
+          </view>
+        </view>
+
+        <!-- 气压 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="pressure">
+          <view class="detail-header">
+            <text class="detail-title">气压</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.pressure}}</text>
+            <text class="detail-unit">hPa</text>
+          </view>
+        </view>
+
+        <!-- 紫外线 -->
+        <view class="detail-card" bindtap="onWeatherDetailTap" data-type="uv">
+          <view class="detail-header">
+            <text class="detail-title">紫外线</text>
+          </view>
+          <view class="detail-content">
+            <text class="detail-value">{{weatherData.uvIndex}}</text>
+            <text class="detail-unit">中等</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>

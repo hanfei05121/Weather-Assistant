@@ -1,0 +1,43 @@
+<!--pages/detail/detail.wxml-->
+<view class="detail-container">
+  <!-- 加载状态 -->
+  <view class="loading-container" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">正在加载...</text>
+  </view>
+
+  <!-- 错误信息 -->
+  <view class="error-container" wx:elif="{{error}}">
+    <text class="error-text">{{error}}</text>
+    <button class="retry-btn" bindtap="loadDetailData">重试</button>
+  </view>
+
+  <!-- 详情内容 -->
+  <view class="detail-content" wx:else>
+    <!-- 顶部导航栏 -->
+    <view class="nav-bar">
+      <view class="nav-back" bindtap="onBack">
+        <text class="back-icon">←</text>
+      </view>
+      <text class="nav-title">{{detailData.title}}</text>
+      <view class="nav-right"></view>
+    </view>
+
+    <!-- 主要内容 -->
+    <view class="main-content">
+      <view class="value-section">
+        <text class="main-value">{{detailData.value}}</text>
+        <text class="main-unit" wx:if="{{detailData.unit}}">{{detailData.unit}}</text>
+      </view>
+      
+      <view class="description-section">
+        <text class="description-text">{{detailData.description}}</text>
+      </view>
+    </view>
+
+    <!-- 图标（仅日期详情显示天气图标） -->
+    <view class="icon-section" wx:if="{{detailData.type === 'date'}}">
+      <image class="detail-icon" src="/images/weather/{{detailData.icon}}.svg" mode="aspectFit"></image>
+    </view>
+  </view>
+</view>
