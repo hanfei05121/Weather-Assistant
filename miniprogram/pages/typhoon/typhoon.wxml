@@ -1,0 +1,143 @@
+<!--pages/typhoon/typhoon.wxml-->
+<view class="page">
+  <view class="header">
+    <view class="header-top">
+      <text class="header-title">台风路径</text>
+      <view class="year-switch">
+        <text class="year-btn {{year === currentYear ? 'year-active' : ''}}" data-year="{{currentYear}}" bindtap="onYearChange">{{currentYear}}</text>
+        <text class="year-btn {{year === currentYear - 1 ? 'year-active' : ''}}" data-year="{{currentYear - 1}}" bindtap="onYearChange">{{currentYear - 1}}</text>
+      </view>
+    </view>
+    <text class="header-sub">西北太平洋台风 · 历史与 7 天预报路径</text>
+  </view>
+
+  <!-- 加载状态 -->
+  <view class="loading-container" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">正在加载台风数据...</text>
+  </view>
+
+  <!-- 错误信息（无台风可显示时） -->
+  <view class="error-container" wx:elif="{{error && !currentStorm}}">
+    <text class="error-text">{{error}}</text>
+    <button class="retry-btn" bindtap="onYearChange" data-year="{{year}}">重试</button>
+  </view>
+
+  <block wx:else>
+    <!-- 台风列表 -->
+    <scroll-view class="storm-scroll" scroll-x wx:if="{{stormList.length}}">
+      <view class="storm-list">
+        <view class="storm-item {{currentStorm.id === item.id ? 'storm-active' : ''}}" wx:for="{{stormList}}" wx:key="id" bindtap="onSelectStorm" data-id="{{item.id}}">
+          <text class="storm-name">{{item.name}}</text>
+          <text class="storm-status {{item.isActive ? 'status-active' : ''}}">{{item.isActive ? '活跃' : '停编'}}</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 当前台风信息 -->
+    <view class="info-card" wx:if="{{currentInfo}}">
+      <view class="info-grid">
+        <view class="info-cell">
+          <text class="info-label">等级</text>
+          <text class="info-value">{{currentInfo.typeText}}</text>
+        </view>
+        <view class="info-cell">
+          <text class="info-label">最大风速</text>
+          <text class="info-value">{{currentInfo.windSpeed}} km/h</text>
+        </view>
+        <view class="info-cell">
+          <text class="info-label">中心气压</text>
+          <text class="info-value">{{currentInfo.pressure}} hPa</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 台风路径地图 -->
+    <view class="map-section">
+      <map
+        id="typhoon-map"
+        class="typhoon-map"
+        latitude="{{latitude}}"
+        longitude="{{longitude}}"
+        scale="5"
+        markers="{{markers}}"
+        polylines="{{polylines}}"
+        circles="{{circles}}"
+        polygons="{{polygons}}"
+        setting="{{mapSetting}}"
+        bindmarkertap="onMarkerTap"
+      ></map>
+      <!-- 图例 -->
+      <view class="map-legend">
+        <view class="legend-item">
+          <view class="legend-line legend-track"></view>
+          <text class="legend-text">历史路径</text>
+        </view>
+        <view class="legend-item">
+          <view class="legend-line legend-forecast"></view>
+          <text class="legend-text">预报路径</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 时间轴 -->
+    <view class="timeline-card" wx:if="{{timeline.length > 1}}">
+      <view class="timeline-tip">拖动进度条查看 7 天路径生成，点击路径节点查看详情</view>
+      <view class="timeline-point">
+        <view class="timeline-tag {{timeline[timelineIndex].isForecast ? 'tag-forecast' : 'tag-track'}}">{{timeline[timelineIndex].isForecast ? '预报' : '实况'}}</view>
+        <view class="timeline-info">
+          <text class="timeline-time">{{timeline[timelineIndex].time}}</text>
+          <text class="timeline-detail">{{timeline[timelineIndex].typeText}} · {{timeline[timelineIndex].windSpeed}} km/h · {{timeline[timelineIndex].pressure}} hPa</text>
+        </view>
+      </view>
+      <slider
+        min="0"
+        max="{{timeline.length - 1}}"
+        value="{{timelineIndex}}"
+        step="1"
+        block-size="20"
+        activeColor="#4facfe"
+        backgroundColor="rgba(255,255,255,0.2)"
+        bindchanging="onTimelineChanging"
+        bindchange="onTimelineChange"
+      />
+    </view>
+
+    <!-- 错误提示（选中台风后加载失败） -->
+    <view class="error-container" wx:if="{{error && currentStorm}}">
+      <text class="error-text">{{error}}</text>
+    </view>
+  </block>
+
+  <!-- 节点详情弹窗 -->
+  <view class="detail-popup" wx:if="{{showDetail}}" style="left:{{detailX}}px;top:{{detailY}}px" catchtap="noop">
+    <view class="detail-arrow"></view>
+    <view class="detail-card">
+      <view class="detail-header">
+        <text class="detail-name">{{currentStorm.name}}</text>
+        <text class="detail-type {{detailPoint.isForecast ? 'type-forecast' : 'type-track'}}">{{detailPoint.isForecast ? '预报' : '实况'}}</text>
+      </view>
+      <view class="detail-time">{{detailPoint.time}}</view>
+      <view class="detail-grid">
+        <view class="detail-item">
+          <text class="d-label">台风等级</text>
+          <text class="d-value">{{detailPoint.typeText}}</text>
+        </view>
+        <view class="detail-item">
+          <text class="d-label">中心气压</text>
+          <text class="d-value">{{detailPoint.pressure}} hPa</text>
+        </view>
+        <view class="detail-item">
+          <text class="d-label">最大风速</text>
+          <text class="d-value">{{detailPoint.windSpeed}} km/h</text>
+        </view>
+        <view class="detail-item">
+          <text class="d-label">坐标</text>
+          <text class="d-value">{{detailPoint.lat}}°N {{detailPoint.lon}}°E</text>
+        </view>
+      </view>
+    </view>
+  </view>
+  <!-- 遮罩层 -->
+  <view class="detail-mask" wx:if="{{showDetail}}" bindtap="onCloseDetail"></view>
+</view>

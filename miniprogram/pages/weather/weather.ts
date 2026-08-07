@@ -1,6 +1,6 @@
 // pages/weather/weather.ts
-import { getWeatherNow, getWeather7d, getWeather24h } from '../../utils/api'
-import { getCurrentCity } from '../../utils/storage'
+import { getWeatherNow, getWeather7d, getWeather24h, getWeatherAir, getWeatherIndices, getWeatherWarning, getCityByLocation, registerCityId } from '../../utils/api'
+import { getCurrentCity, setCurrentCity, getAutoLocated, setAutoLocated, replaceLegacyLocationCity } from '../../utils/storage'
 import { ThreeWeatherParticles } from '../../utils/three-particles'
 
 interface WeatherData {
@@ -50,6 +50,9 @@ Page({
     weatherData: null as WeatherData | null,
     hourlyData: [] as HourlyData[],
     dailyData: [] as DailyData[],
+    airData: null as any,
+    indices: [] as any[],
+    warnings: [] as any[],
     loading: true,
     error: '',
     currentDate: '',
@@ -57,7 +60,43 @@ Page({
   },
 
   onLoad() {
+    this.init()
+  },
+
+  // 首次进入：自动定位到"我的位置（市·区）"并设为当前城市；已定位过则直接加载
+  // 遇到旧版裸"我的位置"数据时强制重新定位迁移
+  async init() {
+    if (!getAutoLocated() || getCurrentCity() === '我的位置') {
+      await this.autoLocate()
+    }
     this.loadWeatherData()
+  },
+
+  async autoLocate() {
+    try {
+      const loc = await this.getLocation()
+      const city = await getCityByLocation(loc.latitude, loc.longitude)
+      if (city) {
+        const locName = `我的位置（${city.name}·${city.district}）`
+        registerCityId(locName, city.id)
+        replaceLegacyLocationCity(locName)
+        setCurrentCity(locName)
+        this.setData({ currentCity: locName })
+      }
+    } catch (error) {
+      console.log('自动定位失败，使用当前城市:', error)
+    }
+    setAutoLocated(true)
+  },
+
+  getLocation(): Promise<{ latitude: number, longitude: number }> {
+    return new Promise((resolve, reject) => {
+      wx.getLocation({
+        type: 'gcj02',
+        success: (res) => resolve({ latitude: res.latitude, longitude: res.longitude }),
+        fail: reject
+      })
+    })
   },
 
   onReady() {
@@ -101,11 +140,14 @@ Page({
     try {
       const city = this.data.currentCity
       
-      // 并行请求主要天气数据
-      const [nowRes, dailyRes, hourlyRes] = await Promise.all([
+      // 并行请求主要天气数据（辅助数据失败不阻塞主流程）
+      const [nowRes, dailyRes, hourlyRes, airRes, indicesRes, warningRes] = await Promise.all([
         getWeatherNow(city),
         getWeather7d(city),
-        getWeather24h(city)
+        getWeather24h(city),
+        getWeatherAir(city).catch(() => null),
+        getWeatherIndices(city).catch(() => null),
+        getWeatherWarning(city).catch(() => null)
       ])
 
       // 处理实时天气数据
@@ -164,6 +206,35 @@ Page({
         weekday: 'long'
       })
 
+      // 处理空气质量
+      let airData = null
+      if (airRes && airRes.now) {
+        airData = {
+          aqi: airRes.now.aqi,
+          category: airRes.now.category,
+          pm25: airRes.now.pm2p5,
+          pm10: airRes.now.pm10
+        }
+      }
+
+      // 处理生活指数
+      const indices = ((indicesRes && indicesRes.daily) || [])
+        .map((item: any) => ({
+          type: item.type,
+          name: item.name,
+          category: item.category,
+          text: item.text ? item.text.slice(0, 24) : ''
+        }))
+        .slice(0, 4)
+
+      // 处理预警信息
+      const warnings = ((warningRes && warningRes.warning) || []).map((item: any) => ({
+        id: item.id,
+        severityColor: item.severityColor || '#ff4d4f',
+        title: item.title,
+        text: item.text ? item.text.slice(0, 40) : ''
+      }))
+
       // 设置天气背景
       const backgroundStyle = WEATHER_BG
 
@@ -171,6 +242,9 @@ Page({
         weatherData,
         hourlyData,
         dailyData,
+        airData,
+        indices,
+        warnings,
         currentDate,
         backgroundStyle,
         loading: false

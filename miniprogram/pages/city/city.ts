@@ -1,6 +1,6 @@
 // pages/city/city.ts
-import { getCityList, addCity, removeCity, setCurrentCity } from '../../utils/storage'
-import { searchCity } from '../../utils/api'
+import { getCityList, addCity, removeCity, setCurrentCity, replaceLegacyLocationCity } from '../../utils/storage'
+import { searchCity, getCityByLocation, registerCityId } from '../../utils/api'
 
 let searchTimer: any = null
 
@@ -15,6 +15,25 @@ Page({
 
   onLoad() {
     this.loadCities()
+    this.upgradeLegacyLocation()
+  },
+
+  // 自动把旧版裸"我的位置"条目升级为"我的位置（市·区）"
+  upgradeLegacyLocation() {
+    if (!getCityList().includes('我的位置')) return
+    wx.getLocation({
+      type: 'gcj02',
+      success: (res) => {
+        getCityByLocation(res.latitude, res.longitude).then((city) => {
+          if (!city) return
+          const displayName = `我的位置（${city.name}·${city.district}）`
+          registerCityId(displayName, city.id)
+          replaceLegacyLocationCity(displayName)
+          this.loadCities()
+        })
+      },
+      fail: () => {}
+    })
   },
 
   onBack() {
@@ -110,18 +129,26 @@ Page({
   onUseCurrentLocation() {
     wx.getLocation({
       type: 'gcj02',
-      success: () => {
-        // 这里可以根据经纬度获取城市名称
-        // 简化处理，直接使用"我的位置"
-        const city = '我的位置'
-        if (addCity(city)) {
-          setCurrentCity(city)
+      success: (res) => {
+        getCityByLocation(res.latitude, res.longitude).then((city) => {
+          if (!city) {
+            wx.showToast({
+              title: '解析位置失败，请重试',
+              icon: 'none'
+            })
+            return
+          }
+          const displayName = `我的位置（${city.name}·${city.district}）`
+          // 注册显示名到真实城市ID的映射，保证天气按真实城市查询
+          registerCityId(displayName, city.id)
+          replaceLegacyLocationCity(displayName)
+          setCurrentCity(displayName)
           this.loadCities()
           wx.showToast({
             title: '已添加当前位置',
             icon: 'success'
           })
-        }
+        })
       },
       fail: () => {
         wx.showToast({

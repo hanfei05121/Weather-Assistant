@@ -147,5 +147,55 @@
         </view>
       </view>
     </view>
+
+    <!-- 空气质量 -->
+    <view class="detail-section" wx:if="{{airData}}">
+      <view class="section-title">空气质量</view>
+      <view class="air-card">
+        <view class="air-main">
+          <text class="air-aqi">{{airData.aqi}}</text>
+          <view class="air-info">
+            <text class="air-category">{{airData.category}}</text>
+            <text class="air-desc">空气指数 AQI</text>
+          </view>
+        </view>
+        <view class="air-grid">
+          <view class="air-item">
+            <text class="air-item-label">PM2.5</text>
+            <text class="air-item-value">{{airData.pm25}}</text>
+          </view>
+          <view class="air-item">
+            <text class="air-item-label">PM10</text>
+            <text class="air-item-value">{{airData.pm10}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 生活指数 -->
+    <view class="detail-section" wx:if="{{indices.length}}">
+      <view class="section-title">生活指数</view>
+      <view class="index-grid">
+        <view class="index-card" wx:for="{{indices}}" wx:key="type">
+          <text class="index-name">{{item.name}}</text>
+          <text class="index-category">{{item.category}}</text>
+          <text class="index-text">{{item.text}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 预警信息 -->
+    <view class="detail-section" wx:if="{{warnings.length}}">
+      <view class="section-title">预警信息</view>
+      <view class="warning-list">
+        <view class="warning-item" wx:for="{{warnings}}" wx:key="id">
+          <view class="warning-badge" style="background: {{item.severityColor}}"></view>
+          <view class="warning-content">
+            <text class="warning-title">{{item.title}}</text>
+            <text class="warning-text">{{item.text}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </scroll-view>
 </view>

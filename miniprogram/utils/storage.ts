@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = 'weather_cities'
 const CURRENT_CITY_KEY = 'current_city'
+const AUTO_LOCATED_KEY = 'auto_located'
 
 // 获取城市列表
 export function getCityList(): string[] {
@@ -60,6 +61,36 @@ export function setCurrentCity(city: string): void {
     wx.setStorageSync(CURRENT_CITY_KEY, city)
   } catch (error) {
     console.error('设置当前城市失败:', error)
+  }
+}
+
+// 是否已执行过首次自动定位（避免每次进入页面重复弹授权）
+export function getAutoLocated(): boolean {
+  try {
+    return !!wx.getStorageSync(AUTO_LOCATED_KEY)
+  } catch (error) {
+    return false
+  }
+}
+
+// 标记首次自动定位已处理（无论成功失败）
+export function setAutoLocated(value: boolean): void {
+  try {
+    wx.setStorageSync(AUTO_LOCATED_KEY, value)
+  } catch (error) {
+    console.error('设置自动定位标记失败:', error)
+  }
+}
+
+// 迁移旧版"我的位置"条目：从城市列表移除旧的裸"我的位置"，替换为新的定位城市名（如"我的位置（南京·玄武区）"）
+export function replaceLegacyLocationCity(replaceWith: string | null): void {
+  const cities = getCityList()
+  if (!cities.includes('我的位置')) return
+  const next = cities.filter(city => city !== '我的位置')
+  if (replaceWith && !next.includes(replaceWith)) next.push(replaceWith)
+  saveCityList(next)
+  if (getCurrentCity() === '我的位置' && replaceWith) {
+    setCurrentCity(replaceWith)
   }
 }
 

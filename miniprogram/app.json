@@ -1,15 +1,42 @@
 {
   "pages": [
     "pages/weather/weather",
+    "pages/typhoon/typhoon",
+    "pages/mine/mine",
     "pages/city/city",
-    "pages/detail/detail",
-    "pages/logs/logs"
+    "pages/detail/detail"
   ],
   "window": {
     "navigationBarTextStyle": "white",
     "navigationStyle": "custom",
     "backgroundColor": "#000000",
     "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#8a8a8a",
+    "selectedColor": "#4a90d9",
+    "backgroundColor": "#16162a",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/weather/weather",
+        "text": "天气",
+        "iconPath": "images/tabbar/weather.png",
+        "selectedIconPath": "images/tabbar/weather-active.png"
+      },
+      {
+        "pagePath": "pages/typhoon/typhoon",
+        "text": "台风",
+        "iconPath": "images/tabbar/typhoon.png",
+        "selectedIconPath": "images/tabbar/typhoon-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "images/tabbar/mine.png",
+        "selectedIconPath": "images/tabbar/mine-active.png"
+      }
+    ]
   },
   "permission": {
     "scope.userLocation": {
