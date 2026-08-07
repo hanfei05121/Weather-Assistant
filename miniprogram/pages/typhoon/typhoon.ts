@@ -263,7 +263,17 @@ Page({
 
       this.allPoints = allPoints
       this.nodes = this.sampleNodes(allPoints)
-      this.progressIndex = Math.max(0, allPoints.length - 1)
+      // 默认定位到当天的实时路径位置（最接近当前时间的点）
+      const nowTs = Date.now()
+      let defaultIndex = 0
+      for (let i = 0; i < allPoints.length; i++) {
+        if (allPoints[i].ts <= nowTs) {
+          defaultIndex = i
+        } else {
+          break
+        }
+      }
+      this.progressIndex = defaultIndex
       this.applyProgress()
       // 打印风圈半径数据用于调试
       console.log('[台风] 风圈半径数据:', allPoints.map((p: PathPoint) => ({ time: p.time, radius30: p.radius30, lat: p.lat, lon: p.lon })))
@@ -271,7 +281,7 @@ Page({
       this.setData({
         currentInfo,
         timeline: allPoints,
-        timelineIndex: Math.max(0, allPoints.length - 1),
+        timelineIndex: defaultIndex,
         loading: false
       }, () => {
         // 等 wx:else 分支渲染完成后初始化地图视图
