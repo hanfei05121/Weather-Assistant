@@ -19,6 +19,28 @@ const DIR_TEXT: Record<string, string> = {
 // 节点间隔 5 小时
 const NODE_INTERVAL_MS = 5 * 60 * 60 * 1000
 
+// 风力等级（蒲福风级）：风速 m/s → 等级
+function windSpeedToLevel(speed: number): number {
+  if (speed < 0.3) return 0
+  if (speed < 1.6) return 1
+  if (speed < 3.4) return 2
+  if (speed < 5.5) return 3
+  if (speed < 8.0) return 4
+  if (speed < 10.8) return 5
+  if (speed < 13.9) return 6
+  if (speed < 17.2) return 7
+  if (speed < 20.8) return 8
+  if (speed < 24.5) return 9
+  if (speed < 28.5) return 10
+  if (speed < 32.7) return 11
+  if (speed < 36.9) return 12
+  if (speed < 41.5) return 13
+  if (speed < 46.2) return 14
+  if (speed < 51.0) return 15
+  if (speed < 56.1) return 16
+  return 17
+}
+
 interface StormItem {
   id: string
   name: string
@@ -31,6 +53,7 @@ interface PathPoint {
   lat: number
   lon: number
   typeText: string
+  windScale: number
   pressure: number
   windSpeed: number
   moveSpeed: number
@@ -243,6 +266,7 @@ Page({
         lat: Number(p.lat),
         lon: Number(p.lon),
         typeText: TYPHOON_TYPE[p.type] || p.type,
+        windScale: windSpeedToLevel(Number(p.windSpeed)),
         pressure: Number(p.pressure),
         windSpeed: Number(p.windSpeed),
         moveSpeed: Number(p.moveSpeed) || 0,
@@ -257,8 +281,11 @@ Page({
         lat: Number(now.lat),
         lon: Number(now.lon),
         typeText: TYPHOON_TYPE[now.type] || now.type,
+        windScale: windSpeedToLevel(Number(now.windSpeed)),
         pressure: Number(now.pressure),
-        windSpeed: Number(now.windSpeed)
+        windSpeed: Number(now.windSpeed),
+        moveSpeed: Number(now.moveSpeed) || 0,
+        moveDir: DIR_TEXT[now.moveDir] || now.moveDir || '--'
       } : null
 
       this.allPoints = allPoints

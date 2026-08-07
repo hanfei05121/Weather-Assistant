@@ -1,13 +1,10 @@
 // pages/detail/detail.ts
-import { getWeatherNow, getWeather7d } from '../../utils/api'
+import { getWeatherNow, getWeather10d } from '../../utils/api'
 
-interface DetailData {
-  type: string
-  title: string
+interface DetailItem {
+  label: string
   value: string
   unit: string
-  description: string
-  icon: string
 }
 
 Page({
@@ -15,7 +12,12 @@ Page({
     city: '',
     date: '',
     type: '',
-    detailData: null as DetailData | null,
+    dateTitle: '',
+    conditionText: '',
+    iconDay: '',
+    tempMax: '',
+    tempMin: '',
+    detailItems: [] as DetailItem[],
     loading: true,
     error: ''
   },
@@ -28,150 +30,150 @@ Page({
 
   async loadDetailData() {
     this.setData({ loading: true, error: '' })
-    
     try {
       const { city, date, type } = this.data
-      
       if (date) {
-        // 日期详情
         await this.loadDateDetail(city, date)
       } else if (type) {
-        // 类型详情
         await this.loadTypeDetail(city, type)
       }
-      
       this.setData({ loading: false })
     } catch (error) {
       console.error('加载详情数据失败:', error)
-      this.setData({
-        loading: false,
-        error: '加载详情数据失败，请稍后重试'
-      })
+      this.setData({ loading: false, error: '加载详情数据失败，请稍后重试' })
     }
   },
 
   async loadDateDetail(city: string, date: string) {
-    const dailyRes = await getWeather7d(city)
+    const dailyRes = await getWeather10d(city)
     const dayData = dailyRes.daily.find((item: any) => item.fxDate === date)
-    
-    if (dayData) {
-      const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-      const dateObj = new Date(date)
-      const weekDay = weekDays[dateObj.getDay()]
-      
-      const detailData: DetailData = {
-        type: 'date',
-        title: `${date} ${weekDay}`,
-        value: dayData.textDay,
-        unit: '',
-        description: `最高温度${dayData.tempMax}°C，最低温度${dayData.tempMin}°C`,
-        icon: dayData.iconDay
-      }
-      
-      this.setData({ detailData })
-    }
+    if (!dayData) return
+
+    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+    const dateObj = new Date(date)
+    const weekDay = weekDays[dateObj.getDay()]
+
+    const items: DetailItem[] = [
+      { label: '白天天气', value: dayData.textDay || '--', unit: '' },
+      { label: '夜间天气', value: dayData.textNight || '--', unit: '' },
+      { label: '最高温度', value: dayData.tempMax || '--', unit: '°C' },
+      { label: '最低温度', value: dayData.tempMin || '--', unit: '°C' },
+      { label: '降水量', value: dayData.precip || '--', unit: 'mm' },
+      { label: '湿度', value: dayData.humidity || '--', unit: '%' },
+      { label: '风向', value: dayData.windDirDay || '--', unit: '' },
+      { label: '风力', value: dayData.windScaleDay || '--', unit: '级' },
+      { label: '风速', value: dayData.windSpeedDay || '--', unit: 'km/h' },
+      { label: '紫外线指数', value: dayData.uvIndex || '--', unit: '' },
+      { label: '能见度', value: dayData.vis || '--', unit: 'km' },
+      { label: '气压', value: dayData.pressure || '--', unit: 'hPa' },
+      { label: '日出', value: dayData.sunrise || '--', unit: '' },
+      { label: '日落', value: dayData.sunset || '--', unit: '' },
+      { label: '月出', value: dayData.moonrise || '--', unit: '' },
+      { label: '月落', value: dayData.moonset || '--', unit: '' },
+      { label: '月相', value: dayData.moonPhase || '--', unit: '' }
+    ]
+
+    this.setData({
+      dateTitle: `${date} ${weekDay}`,
+      conditionText: dayData.textDay || '',
+      iconDay: dayData.iconDay || '',
+      tempMax: dayData.tempMax || '',
+      tempMin: dayData.tempMin || '',
+      detailItems: items
+    })
   },
 
   async loadTypeDetail(city: string, type: string) {
     const nowRes = await getWeatherNow(city)
-    const dailyRes = await getWeather7d(city)
+    const dailyRes = await getWeather10d(city)
     const daily = dailyRes.daily[0]
-    
-    let detailData: DetailData
-    
-    switch (type) {
-      case 'feelslike':
-        detailData = {
-          type: 'feelslike',
-          title: '体感温度',
-          value: nowRes.now.feelsLike,
-          unit: '°C',
-          description: '体感温度考虑了风速、湿度等因素',
-          icon: 'feelslike'
-        }
-        break
-        
-      case 'humidity':
-        detailData = {
-          type: 'humidity',
-          title: '湿度',
-          value: nowRes.now.humidity,
-          unit: '%',
-          description: '当前空气湿度',
-          icon: 'humidity'
-        }
-        break
-        
-      case 'wind':
-        detailData = {
-          type: 'wind',
-          title: '风',
-          value: nowRes.now.windSpeed,
-          unit: `km/h ${nowRes.now.windDir}`,
-          description: `风力等级: ${nowRes.now.windScale}`,
-          icon: 'wind'
-        }
-        break
-        
-      case 'sun':
-        detailData = {
-          type: 'sun',
-          title: '日出日落',
-          value: daily.sunrise,
-          unit: `日落 ${daily.sunset}`,
-          description: '日照时长计算',
-          icon: 'sun'
-        }
-        break
-        
-      case 'visibility':
-        detailData = {
-          type: 'visibility',
-          title: '能见度',
-          value: nowRes.now.vis,
-          unit: 'km',
-          description: '当前能见度',
-          icon: 'visibility'
-        }
-        break
-        
-      case 'pressure':
-        detailData = {
-          type: 'pressure',
-          title: '气压',
-          value: nowRes.now.pressure,
-          unit: 'hPa',
-          description: '当前气压',
-          icon: 'pressure'
-        }
-        break
-        
-      case 'uv':
-        detailData = {
-          type: 'uv',
-          title: '紫外线',
-          value: daily.uvIndex,
-          unit: '中等',
-          description: '紫外线指数',
-          icon: 'uv'
-        }
-        break
-        
-      default:
-        detailData = {
-          type: 'unknown',
-          title: '未知',
-          value: '',
-          unit: '',
-          description: '未知类型',
-          icon: 'unknown'
-        }
+    const now = nowRes.now
+
+    const typeConfig: Record<string, { title: string; items: DetailItem[] }> = {
+      feelslike: {
+        title: '体感温度',
+        items: [
+          { label: '当前体感', value: now.feelsLike || '--', unit: '°C' },
+          { label: '实际温度', value: now.temp || '--', unit: '°C' },
+          { label: '湿度', value: now.humidity || '--', unit: '%' },
+          { label: '风速', value: now.windSpeed || '--', unit: 'km/h' },
+          { label: '风向', value: now.windDir || '--', unit: '' }
+        ]
+      },
+      humidity: {
+        title: '湿度',
+        items: [
+          { label: '当前湿度', value: now.humidity || '--', unit: '%' },
+          { label: '温度', value: now.temp || '--', unit: '°C' },
+          { label: '露点温度', value: now.dew || '--', unit: '°C' },
+          { label: '气压', value: now.pressure || '--', unit: 'hPa' }
+        ]
+      },
+      wind: {
+        title: '风力风向',
+        items: [
+          { label: '风向', value: now.windDir || '--', unit: '' },
+          { label: '风速', value: now.windSpeed || '--', unit: 'km/h' },
+          { label: '风力等级', value: now.windScale || '--', unit: '级' },
+          { label: '阵风', value: now.wind360 || '--', unit: '°' }
+        ]
+      },
+      sun: {
+        title: '日出日落',
+        items: [
+          { label: '日出', value: daily.sunrise || '--', unit: '' },
+          { label: '日落', value: daily.sunset || '--', unit: '' },
+          { label: '月出', value: daily.moonrise || '--', unit: '' },
+          { label: '月落', value: daily.moonset || '--', unit: '' },
+          { label: '月相', value: daily.moonPhase || '--', unit: '' }
+        ]
+      },
+      visibility: {
+        title: '能见度',
+        items: [
+          { label: '当前能见度', value: now.vis || '--', unit: 'km' },
+          { label: '气压', value: now.pressure || '--', unit: 'hPa' },
+          { label: '云量', value: now.cloud || '--', unit: '%' }
+        ]
+      },
+      pressure: {
+        title: '气压',
+        items: [
+          { label: '当前气压', value: now.pressure || '--', unit: 'hPa' },
+          { label: '温度', value: now.temp || '--', unit: '°C' },
+          { label: '湿度', value: now.humidity || '--', unit: '%' },
+          { label: '能见度', value: now.vis || '--', unit: 'km' }
+        ]
+      },
+      uv: {
+        title: '紫外线指数',
+        items: [
+          { label: 'UV指数', value: daily.uvIndex || '--', unit: '' },
+          { label: '紫外线等级', value: getUvLevel(daily.uvIndex), unit: '' },
+          { label: '日出', value: daily.sunrise || '--', unit: '' },
+          { label: '日落', value: daily.sunset || '--', unit: '' }
+        ]
+      }
     }
-    
-    this.setData({ detailData })
+
+    const config = typeConfig[type] || { title: '天气详情', items: [] }
+    this.setData({
+      dateTitle: config.title,
+      detailItems: config.items
+    })
   },
 
   onBack() {
     wx.navigateBack()
   }
 })
+
+function getUvLevel(uv: string | number): string {
+  const n = Number(uv)
+  if (isNaN(n) || n < 0) return '--'
+  if (n <= 2) return '低'
+  if (n <= 5) return '中等'
+  if (n <= 7) return '高'
+  if (n <= 10) return '很高'
+  return '极高'
+}

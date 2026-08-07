@@ -39,15 +39,23 @@
       <view class="info-grid">
         <view class="info-cell">
           <text class="info-label">等级</text>
-          <text class="info-value">{{currentInfo.typeText}}</text>
+          <text class="info-value">{{currentInfo.typeText}} {{currentInfo.windScale}}级</text>
         </view>
         <view class="info-cell">
           <text class="info-label">最大风速</text>
-          <text class="info-value">{{currentInfo.windSpeed}} km/h</text>
+          <text class="info-value">{{currentInfo.windSpeed}} m/s</text>
         </view>
         <view class="info-cell">
           <text class="info-label">中心气压</text>
           <text class="info-value">{{currentInfo.pressure}} hPa</text>
+        </view>
+        <view class="info-cell">
+          <text class="info-label">移动方向</text>
+          <text class="info-value">{{currentInfo.moveDir}}</text>
+        </view>
+        <view class="info-cell">
+          <text class="info-label">移动速度</text>
+          <text class="info-value">{{currentInfo.moveSpeed}} m/s</text>
         </view>
       </view>
     </view>
@@ -87,7 +95,7 @@
         <view class="timeline-tag {{timeline[timelineIndex].isForecast ? 'tag-forecast' : 'tag-track'}}">{{timeline[timelineIndex].isForecast ? '预报' : '实况'}}</view>
         <view class="timeline-info">
           <text class="timeline-time">{{timeline[timelineIndex].time}}</text>
-          <text class="timeline-detail">{{timeline[timelineIndex].typeText}} · {{timeline[timelineIndex].windSpeed}} km/h · {{timeline[timelineIndex].pressure}} hPa</text>
+          <text class="timeline-detail">{{timeline[timelineIndex].typeText}} · {{timeline[timelineIndex].windSpeed}} m/s · {{timeline[timelineIndex].moveDir}} {{timeline[timelineIndex].moveSpeed}} m/s</text>
         </view>
       </view>
       <slider
@@ -121,7 +129,7 @@
       <view class="detail-grid">
         <view class="detail-item">
           <text class="d-label">台风等级</text>
-          <text class="d-value">{{detailPoint.typeText}}</text>
+          <text class="d-value">{{detailPoint.typeText}} {{detailPoint.windScale}}级</text>
         </view>
         <view class="detail-item">
           <text class="d-label">中心气压</text>
@@ -129,7 +137,15 @@
         </view>
         <view class="detail-item">
           <text class="d-label">最大风速</text>
-          <text class="d-value">{{detailPoint.windSpeed}} km/h</text>
+          <text class="d-value">{{detailPoint.windSpeed}} m/s</text>
+        </view>
+        <view class="detail-item">
+          <text class="d-label">移动方向</text>
+          <text class="d-value">{{detailPoint.moveDir}}</text>
+        </view>
+        <view class="detail-item">
+          <text class="d-label">移动速度</text>
+          <text class="d-value">{{detailPoint.moveSpeed}} m/s</text>
         </view>
         <view class="detail-item">
           <text class="d-label">坐标</text>

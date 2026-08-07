@@ -43,9 +43,9 @@ function mapCode(code: string): Kind {
 const CFG = {
   sun:    { count: 14,  color: 0xffc95e, opacity: 0.55, size: 60,  line: false },
   star:   { count: 150, color: 0xffffff, opacity: 0.95, size: 2,   line: false },
-  rain:   { count: 500, color: 0xaac8ff, opacity: 0.45, size: 1,   line: true },
+  rain:   { count: 800, color: 0xaac8ff, opacity: 0.45, size: 1,   line: true },
   snow:   { count: 120, color: 0xffffff, opacity: 0.9,  size: 5,   line: false },
-  storm:  { count: 550, color: 0xaac8ff, opacity: 0.5,  size: 1,   line: true },
+  storm:  { count: 900, color: 0xaac8ff, opacity: 0.5,  size: 1,   line: true },
   fog:    { count: 12,  color: 0xc8d6ee, opacity: 0.4,  size: 160, line: false },
   dust:   { count: 90,  color: 0xdeb887, opacity: 0.5,  size: 3.5, line: false },
   hail:   { count: 60,  color: 0xeef6ff, opacity: 0.95, size: 8,   line: false },
@@ -109,11 +109,11 @@ class ParticleField {
       case 'storm':
         return {
           ...base,
-          y: H * (0.6 + RAND() * 0.4),
+          y: -RAND() * H * 0.3 + RAND() * H * 1.3,
           vx: -30 - 40 * RAND() - wind * 0.15,
-          vy: -(90 + 70 * RAND()),
+          vy: -(120 + 80 * RAND()),
           speed: 1,
-          alpha: 0.6 + 0.4 * RAND(),
+          alpha: 0.5 + 0.5 * RAND(),
         }
       case 'snow':
         return { ...base, y: H * (0.6 + RAND() * 0.4), vy: -(15 + 20 * RAND()), speed: 0.6 + 0.8 * RAND(), alpha: 0.7 + 0.3 * RAND() }
@@ -180,7 +180,7 @@ class ParticleField {
       }
       if (isLine) {
         const idx = i * 6
-        const len = 26
+        const len = 45
         const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1
         const dx = (p.vx / spd) * len
         const dy = (p.vy / spd) * len
@@ -204,7 +204,7 @@ class ParticleField {
       const p = this.items[i]
       if (isLine) {
         const idx = i * 6
-        const len = 26
+        const len = 45
         const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1
         const dx = (p.vx / spd) * len
         const dy = (p.vy / spd) * len

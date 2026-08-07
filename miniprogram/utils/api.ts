@@ -108,10 +108,10 @@ export async function getWeatherNow(city: string) {
   return request(`${BASE_URL}/v7/weather/now`, { location })
 }
 
-// 获取7天天气预报
-export async function getWeather7d(city: string) {
+// 获取10天天气预报
+export async function getWeather10d(city: string) {
   const location = await getCityId(city)
-  return request(`${BASE_URL}/v7/weather/7d`, { location })
+  return request(`${BASE_URL}/v7/weather/10d`, { location })
 }
 
 // 获取24小时天气预报

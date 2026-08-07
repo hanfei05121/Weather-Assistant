@@ -19,25 +19,27 @@
       <view class="nav-back" bindtap="onBack">
         <text class="back-icon">←</text>
       </view>
-      <text class="nav-title">{{detailData.title}}</text>
+      <text class="nav-title">{{dateTitle}}</text>
       <view class="nav-right"></view>
     </view>
 
-    <!-- 主要内容 -->
-    <view class="main-content">
-      <view class="value-section">
-        <text class="main-value">{{detailData.value}}</text>
-        <text class="main-unit" wx:if="{{detailData.unit}}">{{detailData.unit}}</text>
-      </view>
-      
-      <view class="description-section">
-        <text class="description-text">{{detailData.description}}</text>
+    <!-- 天气图标和概况（仅日期详情） -->
+    <view class="condition-header" wx:if="{{iconDay}}">
+      <image class="condition-icon" src="/images/weather/{{iconDay}}.svg" mode="aspectFit"></image>
+      <text class="condition-text">{{conditionText}}</text>
+      <view class="temp-range" wx:if="{{tempMax}}">
+        <text class="temp-hi">{{tempMax}}°</text>
+        <text class="temp-sep">/</text>
+        <text class="temp-lo">{{tempMin}}°</text>
       </view>
     </view>
 
-    <!-- 图标（仅日期详情显示天气图标） -->
-    <view class="icon-section" wx:if="{{detailData.type === 'date'}}">
-      <image class="detail-icon" src="/images/weather/{{detailData.icon}}.svg" mode="aspectFit"></image>
+    <!-- 详情数据网格 -->
+    <view class="info-grid">
+      <view class="info-item" wx:for="{{detailItems}}" wx:key="label">
+        <text class="info-label">{{item.label}}</text>
+        <text class="info-value">{{item.value}}<text class="info-unit" wx:if="{{item.unit}}"> {{item.unit}}</text></text>
+      </view>
     </view>
   </view>
 </view>

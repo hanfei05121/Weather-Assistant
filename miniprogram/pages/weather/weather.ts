@@ -1,5 +1,5 @@
 // pages/weather/weather.ts
-import { getWeatherNow, getWeather7d, getWeather24h, getWeatherAir, getWeatherIndices, getWeatherWarning, getCityByLocation, registerCityId } from '../../utils/api'
+import { getWeatherNow, getWeather10d, getWeather24h, getWeatherAir, getWeatherIndices, getWeatherWarning, getCityByLocation, registerCityId } from '../../utils/api'
 import { getCurrentCity, setCurrentCity, getAutoLocated, setAutoLocated, replaceLegacyLocationCity } from '../../utils/storage'
 import { ThreeWeatherParticles } from '../../utils/three-particles'
 
@@ -40,6 +40,10 @@ interface DailyData {
   high: number
   low: number
   precipitation: number
+  barLeft: number
+  barWidth: number
+  barColorFrom: string
+  barColorTo: string
 }
 
 Page({
@@ -56,7 +60,12 @@ Page({
     loading: true,
     error: '',
     currentDate: '',
-    backgroundStyle: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+    backgroundStyle: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+    windDirDeg: 0,
+    windForce: 0,
+    sunArcPercent: 50,
+    uvPercent: 50,
+    compassTicks: [] as number[]
   },
 
   onLoad() {
@@ -143,7 +152,7 @@ Page({
       // 并行请求主要天气数据（辅助数据失败不阻塞主流程）
       const [nowRes, dailyRes, hourlyRes, airRes, indicesRes, warningRes] = await Promise.all([
         getWeatherNow(city),
-        getWeather7d(city),
+        getWeather10d(city),
         getWeather24h(city),
         getWeatherAir(city).catch(() => null),
         getWeatherIndices(city).catch(() => null),
@@ -181,7 +190,7 @@ Page({
         precipitation: parseInt(item.pop)
       }))
 
-      // 处理7天预报数据
+      // 处理10天预报数据
       const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
       const dailyData: DailyData[] = dailyRes.daily.map((item: any, index: number) => {
         const parts = item.fxDate.split('-')
@@ -235,6 +244,78 @@ Page({
         text: item.text ? item.text.slice(0, 40) : ''
       }))
 
+      // 计算每日温度条位置（相对全局最低/最高温度）
+      const allLows = dailyData.map(d => d.low)
+      const allHighs = dailyData.map(d => d.high)
+      const globalMin = Math.min(...allLows)
+      const globalMax = Math.max(...allHighs)
+      const globalRange = globalMax - globalMin || 1
+      dailyData.forEach(d => {
+        const left = ((d.low - globalMin) / globalRange) * 100
+        const width = ((d.high - d.low) / globalRange) * 100
+        d.barLeft = Math.round(left)
+        d.barWidth = Math.max(8, Math.round(width))
+        // 根据温度高低设置渐变色
+        const ratio = (d.high - globalMin) / globalRange
+        if (ratio < 0.33) {
+          d.barColorFrom = '#4facfe'
+          d.barColorTo = '#00f2fe'
+        } else if (ratio < 0.66) {
+          d.barColorFrom = '#f6d365'
+          d.barColorTo = '#fda085'
+        } else {
+          d.barColorFrom = '#f093fb'
+          d.barColorTo = '#f5576c'
+        }
+      })
+
+      // 计算风向角度
+      const windDirMap: Record<string, number> = {
+        '北': 0, '东北': 45, '东': 90, '东南': 135,
+        '南': 180, '西南': 225, '西': 270, '西北': 315,
+        '北风': 0, '东北风': 45, '东风': 90, '东南风': 135,
+        '南风': 180, '西南风': 225, '西风': 270, '西北风': 315
+      }
+      const windDirDeg = windDirMap[weatherData.windDir] ?? 0
+
+      // 计算风力等级（蒲福风级，m/s）
+      const ws = weatherData.windSpeed
+      let windForce = 0
+      if (ws >= 0.3) windForce = 1
+      if (ws >= 1.6) windForce = 2
+      if (ws >= 3.4) windForce = 3
+      if (ws >= 5.5) windForce = 4
+      if (ws >= 8.0) windForce = 5
+      if (ws >= 10.8) windForce = 6
+      if (ws >= 13.9) windForce = 7
+      if (ws >= 17.2) windForce = 8
+      if (ws >= 20.8) windForce = 9
+      if (ws >= 24.5) windForce = 10
+      if (ws >= 28.5) windForce = 11
+      if (ws >= 32.7) windForce = 12
+
+      // 计算日出日落弧线百分比
+      let sunArcPercent = 50
+      try {
+        const now = Date.now()
+        const today = new Date().toISOString().split('T')[0]
+        const sunriseTime = new Date(`${today}T${weatherData.sunrise}:00`).getTime()
+        const sunsetTime = new Date(`${today}T${weatherData.sunset}:00`).getTime()
+        const dayLen = sunsetTime - sunriseTime
+        if (dayLen > 0) {
+          sunArcPercent = Math.max(0, Math.min(100, ((now - sunriseTime) / dayLen) * 100))
+        }
+      } catch (_) { /* ignore */ }
+
+      // 计算紫外线百分比（UV 0-11+ 映射到 0-100%）
+      const uvPercent = Math.min(100, Math.round((weatherData.uvIndex / 11) * 100))
+
+      // 生成罗盘刻度（每5度一个刻度）
+      const compassTicks: number[] = []
+      for (let i = 0; i < 72; i++) {
+        compassTicks.push(i * 5)
+      }
+
       // 设置天气背景
       const backgroundStyle = WEATHER_BG
 
@@ -247,6 +328,11 @@ Page({
         warnings,
         currentDate,
         backgroundStyle,
+        windDirDeg,
+        windForce,
+        sunArcPercent,
+        uvPercent,
+        compassTicks,
         loading: false
       }, () => {
         if (this.particles) this.particles.setWeather(now.icon, parseInt(now.windSpeed) || 0)
