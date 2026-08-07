@@ -435,8 +435,8 @@
 /* 中心圆 — 用 top/left 定位，不透明背景遮住指针，避免 transform 造成层级异常 */
 .compass-center {
   position: absolute;
-  top: 70rpx;
-  left: 70rpx;
+  top: 75rpx;
+  left: 75rpx;
   width: 90rpx;
   height: 90rpx;
   border-radius: 50%;

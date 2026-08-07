@@ -90,7 +90,7 @@
 
     <!-- 时间轴 -->
     <view class="timeline-card" wx:if="{{timeline.length > 1}}">
-      <view class="timeline-tip">拖动进度条查看 7 天路径生成，点击路径节点查看详情</view>
+      <view class="timeline-tip">历史路径已完整显示，拖动进度条查看未来 7 天预报</view>
       <view class="timeline-point">
         <view class="timeline-tag {{timeline[timelineIndex].isForecast ? 'tag-forecast' : 'tag-track'}}">{{timeline[timelineIndex].isForecast ? '预报' : '实况'}}</view>
         <view class="timeline-info">

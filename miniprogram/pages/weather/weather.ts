@@ -1,5 +1,5 @@
 // pages/weather/weather.ts
-import { getWeatherNow, getWeather10d, getWeather24h, getWeatherAir, getWeatherIndices, getWeatherWarning, getCityByLocation, registerCityId } from '../../utils/api'
+import { getWeatherNow, getWeather10d, getWeather24h, getWeatherAir, getWeatherIndices, getWeatherWarning, getCityByLocation, registerCityId, registerCityCoord } from '../../utils/api'
 import { getCurrentCity, setCurrentCity, getAutoLocated, setAutoLocated, replaceLegacyLocationCity } from '../../utils/storage'
 import { ThreeWeatherParticles } from '../../utils/three-particles'
 
@@ -88,6 +88,7 @@ Page({
       if (city) {
         const locName = `我的位置（${city.name}·${city.district}）`
         registerCityId(locName, city.id)
+        registerCityCoord(locName, { lat: loc.latitude, lon: loc.longitude })
         replaceLegacyLocationCity(locName)
         setCurrentCity(locName)
         this.setData({ currentCity: locName })
@@ -215,14 +216,17 @@ Page({
         weekday: 'long'
       })
 
-      // 处理空气质量
+      // 处理空气质量（新版 v1：indexes 用 QAQI，pollutants 取 PM2.5/PM10）
       let airData = null
-      if (airRes && airRes.now) {
+      if (airRes && airRes.indexes) {
+        const qaqi = airRes.indexes.find((i: any) => i.code === 'qaqi') || airRes.indexes.find((i: any) => i.code === 'us-epa') || airRes.indexes[0]
+        const pm25 = (airRes.pollutants || []).find((p: any) => p.code === 'pm2p5')
+        const pm10 = (airRes.pollutants || []).find((p: any) => p.code === 'pm10')
         airData = {
-          aqi: airRes.now.aqi,
-          category: airRes.now.category,
-          pm25: airRes.now.pm2p5,
-          pm10: airRes.now.pm10
+          aqi: qaqi ? (qaqi.aqiDisplay != null ? qaqi.aqiDisplay : qaqi.aqi) : '-',
+          category: qaqi ? qaqi.category : '',
+          pm25: pm25 ? pm25.concentration.value : null,
+          pm10: pm10 ? pm10.concentration.value : null
         }
       }
 
@@ -236,12 +240,12 @@ Page({
         }))
         .slice(0, 4)
 
-      // 处理预警信息
-      const warnings = ((warningRes && warningRes.warning) || []).map((item: any) => ({
+      // 处理预警信息（新版 v1：alerts 数组，eventType.name 为事件名）
+      const warnings = ((warningRes && warningRes.alerts) || []).map((item: any) => ({
         id: item.id,
-        severityColor: item.severityColor || '#ff4d4f',
-        title: item.title,
-        text: item.text ? item.text.slice(0, 40) : ''
+        severityColor: '#ff4d4f',
+        title: item.eventType?.name || item.headline || '天气预警',
+        text: item.headline ? item.headline.slice(0, 40) : (item.description ? item.description.slice(0, 40) : '')
       }))
 
       // 计算每日温度条位置（相对全局最低/最高温度）

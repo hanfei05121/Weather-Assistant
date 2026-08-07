@@ -53,13 +53,30 @@ const CFG = {
 
 type FieldKey = keyof typeof CFG
 
-class ParticleField {
-  kind: Kind
-  items: Particle[] = []
+// 星星大小分层（少而亮的大星 + 中星 + 大量小星）
+const STAR_TIERS = [
+  { size: 7, frac: 0.12 },
+  { size: 4.4, frac: 0.30 },
+  { size: 2.6, frac: 0.58 },
+] as const
+
+// 一个渲染层（对应一个 geometry/material/Points，尺寸统一）
+interface Layer {
+  positions: Float32Array
   geometry: any
   material: any
   object: any
-  positions: Float32Array
+  count: number
+  used: number
+}
+
+type FieldItem = Particle & { layer: number, li: number }
+
+class ParticleField {
+  kind: Kind
+  items: FieldItem[] = []
+  layers: Layer[] = []
+  isLine = false
   private count: number
   private W: number
   private H: number
@@ -72,17 +89,45 @@ class ParticleField {
     this.windSpeed = windSpeed
     const cfg = CFG[kind as FieldKey]
     this.count = cfg.count
+    this.isLine = cfg.line
+
     if (cfg.line) {
-      this.positions = new Float32Array(this.count * 6)
-      this.geometry = new THREE.BufferGeometry()
-      this.geometry.addAttribute('position', new THREE.BufferAttribute(this.positions, 3))
-      this.material = new THREE.LineBasicMaterial({ color: cfg.color, transparent: true, opacity: cfg.opacity })
-      this.object = new THREE.LineSegments(this.geometry, this.material)
+      const positions = new Float32Array(this.count * 6)
+      const geometry = new THREE.BufferGeometry()
+      geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3))
+      const material = new THREE.LineBasicMaterial({ color: cfg.color, transparent: true, opacity: cfg.opacity })
+      const object = new THREE.LineSegments(geometry, material)
+      object.frustumCulled = false
+      this.layers = [{ positions, geometry, material, object, count: this.count, used: 0 }]
+    } else if (kind === 'star') {
+      let allocated = 0
+      for (let t = 0; t < STAR_TIERS.length; t++) {
+        const tier = STAR_TIERS[t]
+        const last = t === STAR_TIERS.length - 1
+        const cnt = last ? this.count - allocated : Math.max(1, Math.round(this.count * tier.frac))
+        allocated += cnt
+        const positions = new Float32Array(cnt * 3)
+        const geometry = new THREE.BufferGeometry()
+        geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3))
+        const material = new THREE.PointsMaterial({
+          size: tier.size,
+          map: texture,
+          color: cfg.color,
+          transparent: true,
+          opacity: cfg.opacity,
+          depthTest: false,
+          depthWrite: false,
+          sizeAttenuation: false,
+        })
+        const object = new THREE.Points(geometry, material)
+        object.frustumCulled = false
+        this.layers.push({ positions, geometry, material, object, count: cnt, used: 0 })
+      }
     } else {
-      this.positions = new Float32Array(this.count * 3)
-      this.geometry = new THREE.BufferGeometry()
-      this.geometry.addAttribute('position', new THREE.BufferAttribute(this.positions, 3))
-      this.material = new THREE.PointsMaterial({
+      const positions = new Float32Array(this.count * 3)
+      const geometry = new THREE.BufferGeometry()
+      geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3))
+      const material = new THREE.PointsMaterial({
         size: cfg.size,
         map: texture,
         color: cfg.color,
@@ -92,11 +137,36 @@ class ParticleField {
         depthWrite: false,
         sizeAttenuation: false,
       })
-      this.object = new THREE.Points(this.geometry, this.material)
+      const object = new THREE.Points(geometry, material)
+      object.frustumCulled = false
+      this.layers = [{ positions, geometry, material, object, count: this.count, used: 0 }]
     }
-    this.object.frustumCulled = false
-    for (let i = 0; i < this.count; i++) this.items.push(this.spawn())
+
+    for (let i = 0; i < this.count; i++) {
+      const layerIdx = this.pickLayer()
+      const layer = this.layers[layerIdx]
+      const p = Object.assign(this.spawn(), { layer: layerIdx, li: layer.used })
+      layer.used++
+      this.items.push(p)
+    }
     this.flush()
+  }
+
+  // 非星星恒为第 0 层；星星按层级权重随机分配
+  private pickLayer(): number {
+    if (this.kind !== 'star') return 0
+    const r = Math.random()
+    let acc = 0
+    for (let t = 0; t < STAR_TIERS.length; t++) {
+      acc += STAR_TIERS[t].frac
+      if (r <= acc) return t
+    }
+    return this.layers.length - 1
+  }
+
+  // 供 ThreeWeatherParticles 将每个渲染层都加入场景
+  get objects(): any[] {
+    return this.layers.map(l => l.object)
   }
 
   private spawn(): Particle {
@@ -136,8 +206,7 @@ class ParticleField {
     const W = this.W
     const H = this.H
     const items = this.items
-    const pos = this.positions
-    const isLine = CFG[this.kind as FieldKey].line
+    const isLine = this.isLine
     for (let i = 0; i < items.length; i++) {
       const p = items[i]
       switch (this.kind) {
@@ -178,49 +247,55 @@ class ParticleField {
         default:
           break
       }
+      const layer = this.layers[p.layer]
       if (isLine) {
-        const idx = i * 6
+        const idx = p.li * 6
         const len = 45
         const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1
         const dx = (p.vx / spd) * len
         const dy = (p.vy / spd) * len
-        pos[idx] = p.x; pos[idx + 1] = p.y; pos[idx + 2] = 0
-        pos[idx + 3] = p.x + dx; pos[idx + 4] = p.y + dy; pos[idx + 5] = 0
+        layer.positions[idx] = p.x; layer.positions[idx + 1] = p.y; layer.positions[idx + 2] = 0
+        layer.positions[idx + 3] = p.x + dx; layer.positions[idx + 4] = p.y + dy; layer.positions[idx + 5] = 0
       } else {
-        const idx = i * 3
-        pos[idx] = p.x; pos[idx + 1] = p.y; pos[idx + 2] = 0
+        const idx = p.li * 3
+        layer.positions[idx] = p.x; layer.positions[idx + 1] = p.y; layer.positions[idx + 2] = 0
       }
+      layer.geometry.attributes.position.needsUpdate = true
     }
-    this.geometry.attributes.position.needsUpdate = true
     if (this.kind === 'star') {
-      this.material.opacity = CFG.star.opacity * (0.55 + 0.45 * Math.abs(Math.sin(t * 1.3)))
+      for (let li = 0; li < this.layers.length; li++) {
+        // 各层亮度相位错开，星星闪烁更自然
+        this.layers[li].material.opacity = CFG.star.opacity * (0.55 + 0.45 * Math.abs(Math.sin(t * 1.3 + li * 0.8)))
+      }
     }
   }
 
   private flush() {
-    const pos = this.positions
-    const isLine = CFG[this.kind as FieldKey].line
+    const isLine = this.isLine
     for (let i = 0; i < this.items.length; i++) {
       const p = this.items[i]
+      const layer = this.layers[p.layer]
       if (isLine) {
-        const idx = i * 6
+        const idx = p.li * 6
         const len = 45
         const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1
         const dx = (p.vx / spd) * len
         const dy = (p.vy / spd) * len
-        pos[idx] = p.x; pos[idx + 1] = p.y; pos[idx + 2] = 0
-        pos[idx + 3] = p.x + dx; pos[idx + 4] = p.y + dy; pos[idx + 5] = 0
+        layer.positions[idx] = p.x; layer.positions[idx + 1] = p.y; layer.positions[idx + 2] = 0
+        layer.positions[idx + 3] = p.x + dx; layer.positions[idx + 4] = p.y + dy; layer.positions[idx + 5] = 0
       } else {
-        const idx = i * 3
-        pos[idx] = p.x; pos[idx + 1] = p.y; pos[idx + 2] = 0
+        const idx = p.li * 3
+        layer.positions[idx] = p.x; layer.positions[idx + 1] = p.y; layer.positions[idx + 2] = 0
       }
+      layer.geometry.attributes.position.needsUpdate = true
     }
-    this.geometry.attributes.position.needsUpdate = true
   }
 
   dispose() {
-    this.geometry.dispose()
-    this.material.dispose()
+    for (const layer of this.layers) {
+      layer.geometry.dispose()
+      layer.material.dispose()
+    }
   }
 }
 
@@ -273,7 +348,7 @@ export class ThreeWeatherParticles {
       const THREE = this.THREE
       const field = new ParticleField(THREE, next as Exclude<Kind, 'none'>, this.W, this.H, this.texture, windSpeed)
       this.fields.push(field)
-      this.scene.add(field.object)
+      for (const obj of field.objects) this.scene.add(obj)
     }
   }
 
@@ -303,7 +378,7 @@ export class ThreeWeatherParticles {
 
   private clearFields() {
     for (let i = 0; i < this.fields.length; i++) {
-      if (this.scene) this.scene.remove(this.fields[i].object)
+      for (const obj of this.fields[i].objects) this.scene.remove(obj)
       this.fields[i].dispose()
     }
     this.fields = []

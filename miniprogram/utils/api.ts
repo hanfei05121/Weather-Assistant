@@ -60,6 +60,9 @@ async function request(url: string, params: Record<string, string> = {}): Promis
         key: API_KEY,
         ...params
       },
+      header: {
+        'X-QW-Api-Key': API_KEY
+      },
       success: (res) => {
         if (res.statusCode === 200) {
           const data = res.data as any
@@ -102,6 +105,60 @@ async function getCityId(city: string): Promise<string> {
   return cityIds['南京'] // 兜底默认南京
 }
 
+// 城市名→经纬度映射（空气/预警新 v1 接口需要经纬度坐标）
+const coordCache: Record<string, { lat: number, lon: number }> = {}
+const COORD_MAP_KEY = 'city_coord_map'
+
+function getPersistedCoords(city: string): { lat: number, lon: number } | null {
+  try {
+    const map = wx.getStorageSync(COORD_MAP_KEY)
+    return (map && map[city]) || null
+  } catch (error) {
+    return null
+  }
+}
+
+function persistCoords(city: string, coord: { lat: number, lon: number }): void {
+  try {
+    const map = wx.getStorageSync(COORD_MAP_KEY) || {}
+    map[city] = coord
+    wx.setStorageSync(COORD_MAP_KEY, map)
+  } catch (error) {
+    console.error('持久化城市坐标失败:', error)
+  }
+}
+
+// 获取城市经纬度：优先本地映射，其次持久化，再次 GeoAPI 反查（仅支持标准城市名）
+export async function getCityCoords(city: string): Promise<{ lat: number, lon: number } | null> {
+  if (coordCache[city]) return coordCache[city]
+
+  const persisted = getPersistedCoords(city)
+  if (persisted) {
+    coordCache[city] = persisted
+    return persisted
+  }
+
+  try {
+    const result = await request(`${BASE_URL}/geo/v2/city/lookup`, { location: city, number: '1', range: 'cn' })
+    const location = result.location && result.location[0]
+    if (location && location.lat != null && location.lon != null) {
+      const coord = { lat: Number(location.lat), lon: Number(location.lon) }
+      coordCache[city] = coord
+      persistCoords(city, coord)
+      return coord
+    }
+  } catch (error) {
+    console.error('坐标反查失败:', error)
+  }
+  return null
+}
+
+// 注册城市名到经纬度的映射（如定位成功后保存 GPS 坐标）
+export function registerCityCoord(cityName: string, coord: { lat: number, lon: number }): void {
+  coordCache[cityName] = coord
+  persistCoords(cityName, coord)
+}
+
 // 获取实时天气
 export async function getWeatherNow(city: string) {
   const location = await getCityId(city)
@@ -120,22 +177,24 @@ export async function getWeather24h(city: string) {
   return request(`${BASE_URL}/v7/weather/24h`, { location })
 }
 
-// 获取空气质量
+// 获取空气质量（新版 v1 接口，按经纬度查询）
 export async function getWeatherAir(city: string) {
-  const location = await getCityId(city)
-  return request(`${BASE_URL}/air/v5/now`, { location })
+  const coord = await getCityCoords(city)
+  if (!coord) return null
+  return request(`${BASE_URL}/airquality/v1/current/${coord.lat}/${coord.lon}`)
 }
 
 // 获取生活指数（穿衣/紫外线/运动/洗车）
 export async function getWeatherIndices(city: string) {
   const location = await getCityId(city)
-  return request(`${BASE_URL}/indices/v1/weather`, { location, type: '1,2,3,5' })
+  return request(`${BASE_URL}/v7/indices/1d`, { location, type: '1,2,3,5' })
 }
 
-// 获取极端天气预警
+// 获取极端天气预警（新版 v1 接口，按经纬度查询）
 export async function getWeatherWarning(city: string) {
-  const location = await getCityId(city)
-  return request(`${BASE_URL}/warning/v7/now`, { location })
+  const coord = await getCityCoords(city)
+  if (!coord) return null
+  return request(`${BASE_URL}/weatheralert/v1/current/${coord.lat}/${coord.lon}`)
 }
 
 // 获取台风列表（basin=NP 西北太平洋，支持本年度和上一年度）
@@ -177,6 +236,7 @@ export async function getCityByLocation(latitude: number, longitude: number): Pr
     cityName = cityName.replace(/市$/, '')
     locationCache[cityName] = loc.id
     persistCityId(cityName, loc.id)
+    registerCityCoord(cityName, { lat: Number(loc.lat), lon: Number(loc.lon) })
     return { name: cityName, district: loc.name, id: loc.id }
   } catch (error) {
     console.error('定位反查城市失败:', error)

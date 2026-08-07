@@ -16,8 +16,8 @@ const DIR_TEXT: Record<string, string> = {
   N: '北', NE: '东北', E: '东', SE: '东南', S: '南', SW: '西南', W: '西', NW: '西北'
 }
 
-// 节点间隔 5 小时
-const NODE_INTERVAL_MS = 5 * 60 * 60 * 1000
+// 节点间隔 2 小时
+const NODE_INTERVAL_MS = 2 * 60 * 60 * 1000
 
 // 风力等级（蒲福风级）：风速 m/s → 等级
 function windSpeedToLevel(speed: number): number {
@@ -94,8 +94,10 @@ Page({
   },
 
   // 路径数据
-  allPoints: [] as PathPoint[],
-  nodes: [] as any[],
+  allHistory: [] as PathPoint[],
+  allForecast: [] as PathPoint[],
+  histNodes: [] as any[],
+  fcNodes: [] as any[],
   progressIndex: 0,
   // 地图尺寸（用于弹窗定位）
   mapWidth: 0,
@@ -144,12 +146,42 @@ Page({
     return { latitude: lat + dLat, longitude: lon + dLon }
   },
 
+  // Catmull-Rom 样条：单段插值点
+  catmullPoint(p0: any, p1: any, p2: any, p3: any, t: number) {
+    const t2 = t * t
+    const t3 = t2 * t
+    const lat = 0.5 * (2 * p1.latitude + (-p0.latitude + p2.latitude) * t +
+      (2 * p0.latitude - 5 * p1.latitude + 4 * p2.latitude - p3.latitude) * t2 +
+      (-p0.latitude + 3 * p1.latitude - 3 * p2.latitude + p3.latitude) * t3)
+    const lon = 0.5 * (2 * p1.longitude + (-p0.longitude + p2.longitude) * t +
+      (2 * p0.longitude - 5 * p1.longitude + 4 * p2.longitude - p3.longitude) * t2 +
+      (-p0.longitude + 3 * p1.longitude - 3 * p2.longitude + p3.longitude) * t3)
+    return { latitude: lat, longitude: lon }
+  },
+
+  // 将路径折线平滑为曲滑线（每段细分 subdiv 个点）
+  smoothPath(points: { latitude: number, longitude: number }[], subdiv = 12) {
+    const n = points.length
+    if (n < 3) return points
+    const out: { latitude: number, longitude: number }[] = []
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = points[i - 1] || points[i]
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      const p3 = points[i + 2] || p2
+      for (let j = 0; j <= subdiv; j++) {
+        out.push(this.catmullPoint(p0, p1, p2, p3, j / subdiv))
+      }
+    }
+    return out
+  },
+
   // 生成龙卷风式螺旋臂多边形（原生覆盖物，随地图移动缩放）
   buildVortexPolygons(lat: number, lon: number, radiusKm: number, angle: number) {
     const arms = 6
     const turns = 1.8
     const band = 0.35
-    const segments = 14
+    const segments = 40
     const innerFrac = 0.05
     const polys: any[] = []
     for (let a = 0; a < arms; a++) {
@@ -183,13 +215,23 @@ Page({
   // 涡旋旋转动画（低频更新，避免高频 setData 导致地图重绘闪烁）
   startVortexAnimation() {
     this.vortexTimer = setInterval(() => {
-      if (!this.allPoints.length) return
-      const cur = this.allPoints[Math.max(0, this.progressIndex)]
+      const cur = this.currentPoint()
+      if (!cur) return
       const radiusKm = cur.radius30 > 0 ? cur.radius30 : 300
-      this.vortexAngle += 0.15
+      this.vortexAngle += 0.5
       const polys = this.buildVortexPolygons(cur.lat, cur.lon, radiusKm, this.vortexAngle)
       this.setData({ polygons: polys })
-    }, 150)
+    }, 100)
+  },
+
+  // 当前显示的那一个点（进度到第几个预报点 / 或最后一个历史点）
+  currentPoint(): PathPoint | null {
+    if (!this.allHistory.length && !this.allForecast.length) return null
+    if (this.allForecast.length) {
+      const i = Math.max(0, Math.min(this.progressIndex, this.allForecast.length - 1))
+      return this.allForecast[i]
+    }
+    return this.allHistory[this.allHistory.length - 1]
   },
 
   async loadStorms(year: number) {
@@ -274,7 +316,26 @@ Page({
         radius30: r30(p),
         isForecast
       })
-      const allPoints = track.map((p: any) => toPoint(p, false)).concat(forecast.map((p: any) => toPoint(p, true)))
+      const allHistory = track.map((p: any) => toPoint(p, false))
+      const allForecast = forecast.map((p: any) => toPoint(p, true))
+
+      // 将当前实况点（trackRes.now）作为预报起点，路径从现在开始而非跳到明天
+      if (now) {
+        allForecast.unshift({
+          ts: new Date(now.pubTime).getTime(),
+          time: now.pubTime,
+          lat: Number(now.lat),
+          lon: Number(now.lon),
+          typeText: TYPHOON_TYPE[now.type] || now.type,
+          windScale: windSpeedToLevel(Number(now.windSpeed)),
+          pressure: Number(now.pressure),
+          windSpeed: Number(now.windSpeed),
+          moveSpeed: Number(now.moveSpeed) || 0,
+          moveDir: DIR_TEXT[now.moveDir] || now.moveDir || '--',
+          radius30: r30(now),
+          isForecast: false
+        })
+      }
 
       const currentInfo = now ? {
         time: now.pubTime,
@@ -288,27 +349,22 @@ Page({
         moveDir: DIR_TEXT[now.moveDir] || now.moveDir || '--'
       } : null
 
-      this.allPoints = allPoints
-      this.nodes = this.sampleNodes(allPoints)
-      // 默认定位到当天的实时路径位置（最接近当前时间的点）
-      const nowTs = Date.now()
-      let defaultIndex = 0
-      for (let i = 0; i < allPoints.length; i++) {
-        if (allPoints[i].ts <= nowTs) {
-          defaultIndex = i
-        } else {
-          break
-        }
-      }
-      this.progressIndex = defaultIndex
+      this.allHistory = allHistory
+      this.allForecast = allForecast
+      // 历史路径采样节点 + 预报路径采样节点（带各自下标）
+      this.histNodes = this.sampleNodes(allHistory)
+      this.fcNodes = allForecast.map((p: PathPoint, idx: number) => ({ point: p, ts: p.ts, idx }))
+      // 进度从"现在"开始（第 0 个预报点），历史路径始终完整显示
+      this.progressIndex = 0
       this.applyProgress()
       // 打印风圈半径数据用于调试
-      console.log('[台风] 风圈半径数据:', allPoints.map((p: PathPoint) => ({ time: p.time, radius30: p.radius30, lat: p.lat, lon: p.lon })))
+      console.log('[台风] 历史路径点:', allHistory.map((p: PathPoint) => ({ time: p.time, radius30: p.radius30 })))
+      console.log('[台风] 预报路径点:', allForecast.map((p: PathPoint) => ({ time: p.time, radius30: p.radius30 })))
 
       this.setData({
         currentInfo,
-        timeline: allPoints,
-        timelineIndex: defaultIndex,
+        timeline: allForecast,
+        timelineIndex: 0,
         loading: false
       }, () => {
         // 等 wx:else 分支渲染完成后初始化地图视图
@@ -320,43 +376,54 @@ Page({
     }
   },
 
-  // 按当前进度刷新地图：路径线、节点、风圈、中心
+  // 按当前进度刷新地图：历史路径始终完整显示，未来 7 天预报随进度逐步展开
   applyProgress() {
-    const index = Math.max(0, Math.min(this.progressIndex, this.allPoints.length - 1))
-    const all = this.allPoints
-    const untilTs = all[index].ts
+    const all = this.allHistory
+    const fc = this.allForecast
+    if (all.length + fc.length === 0) return
+    // 预报进度下标（0 = 从现在开始，到最后 = 完整 7 天预报）
+    const fcIndex = Math.max(0, Math.min(this.progressIndex, fc.length - 1))
 
-    // 路径线（历史实线 + 预报蓝线，到当前进度）
-    const hist = all.filter(p => !p.isForecast && p.ts <= untilTs)
-    const fc = all.filter(p => p.isForecast && p.ts <= untilTs)
+    // 路径线（历史实线始终全显 + 预报蓝线到当前进度），均平滑为曲滑线
     const polylines: any[] = []
-    if (hist.length) {
+    if (all.length) {
       polylines.push({
-        points: hist.map(p => ({ latitude: p.lat, longitude: p.lon })),
+        points: this.smoothPath(all.map(p => ({ latitude: p.lat, longitude: p.lon }))),
         color: '#FFD24A',
         width: 4,
         arrowLine: true
       })
     }
     if (fc.length) {
-      const pts = hist.length ? [hist[hist.length - 1], ...fc] : fc
+      const shown = fc.slice(0, fcIndex + 1).map(p => ({ latitude: p.lat, longitude: p.lon }))
+      const pts = all.length ? [{ latitude: all[all.length - 1].lat, longitude: all[all.length - 1].lon }, ...shown] : shown
       polylines.push({
-        points: pts.map(p => ({ latitude: p.lat, longitude: p.lon })),
+        points: this.smoothPath(pts),
         color: '#4facfe',
         width: 4
       })
     }
 
-    // 节点 markers（已到部分显示，每 5 小时一个）
+    // 节点 markers（到当前进度为止；历史节点每 5 小时一个，预报节点按采样）
     const markers: any[] = []
-    for (let i = 0; i < this.nodes.length; i++) {
-      const node = this.nodes[i]
-      if (node.ts > untilTs) continue
+    for (let i = 0; i < this.histNodes.length; i++) {
       markers.push({
         id: i,
-        latitude: node.point.lat,
-        longitude: node.point.lon,
-        iconPath: node.point.isForecast ? '/images/typhoon/dot-blue.png' : '/images/typhoon/dot-gold.png',
+        latitude: this.histNodes[i].point.lat,
+        longitude: this.histNodes[i].point.lon,
+        iconPath: '/images/typhoon/dot-gold.png',
+        width: 24,
+        height: 24,
+        anchor: { x: 0.5, y: 0.5 }
+      })
+    }
+    for (const n of this.fcNodes) {
+      if (n.idx > fcIndex) continue
+      markers.push({
+        id: 1000 + n.idx,
+        latitude: n.point.lat,
+        longitude: n.point.lon,
+        iconPath: '/images/typhoon/dot-blue.png',
         width: 24,
         height: 24,
         anchor: { x: 0.5, y: 0.5 }
@@ -364,7 +431,7 @@ Page({
     }
 
     // 当前进度点（台风图标高亮）
-    const cur = all[index]
+    const cur = this.currentPoint()!
     markers.push({
       id: 9999,
       latitude: cur.lat,
@@ -400,7 +467,7 @@ Page({
   // 拖动过程中实时更新路径（bindchanging）
   onTimelineChanging(e: WechatMiniprogram.SliderChange) {
     const index = Number(e.detail.value)
-    if (!this.allPoints[index]) return
+    if (!this.allForecast[index]) return
     this.progressIndex = index
     this.setData({ timelineIndex: index })
     this.applyProgress()
@@ -408,7 +475,7 @@ Page({
 
   onTimelineChange(e: WechatMiniprogram.SliderChange) {
     const index = Number(e.detail.value)
-    if (!this.allPoints[index]) return
+    if (!this.allForecast[index]) return
     this.progressIndex = index
     this.setData({ timelineIndex: index })
     this.applyProgress()
@@ -420,10 +487,13 @@ Page({
     const markerId = Number(e.detail.markerId)
     let point: PathPoint | null = null
     if (markerId === 9999) {
-      point = this.allPoints[this.progressIndex]
-    } else {
-      const node = this.nodes[markerId]
+      point = this.currentPoint()
+    } else if (markerId >= 1000) {
+      const node = this.fcNodes.find((n) => n.idx === markerId - 1000)
       if (node) point = node.point
+    } else {
+      const histNode = this.histNodes[markerId]
+      if (histNode) point = histNode.point
     }
     if (!point) return
     // 将点位经纬度转换为屏幕坐标，弹窗显示在台风上方
@@ -462,13 +532,13 @@ Page({
 
   noop() {},
 
-  // 预报路径点仅保留未来 7 天内
+  // 预报路径点仅保留"当前时刻"起未来 7 天内（路径从现在的时间点开始）
   filterForecast7d(forecast: any[]): any[] {
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
     const now = Date.now()
     return (forecast || []).filter((p: any) => {
       const t = new Date(p.fxTime).getTime()
-      return !isNaN(t) && t - now <= SEVEN_DAYS_MS
+      return !isNaN(t) && t >= now && t - now <= SEVEN_DAYS_MS
     })
   }
 })

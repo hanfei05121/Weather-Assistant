@@ -1,22 +1,33 @@
 <!--pages/mine/mine.wxml-->
 <view class="page">
   <view class="profile-card">
-    <view class="avatar">👤</view>
+    <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+      <image wx:if="{{avatarUrl}}" class="avatar" src="{{avatarUrl}}" mode="aspectFill"></image>
+      <view wx:else class="avatar avatar-placeholder">👤</view>
+    </button>
     <view class="profile-info">
-      <text class="nickname">{{nickname}}</text>
+      <input
+        class="nickname"
+        type="nickname"
+        value="{{nickname}}"
+        placeholder="点击设置昵称"
+        bindblur="onNicknameChange"
+        bindconfirm="onNicknameChange"
+        maxlength="20"
+      />
       <text class="member">天气会员</text>
     </view>
   </view>
 
   <view class="menu-card">
-    <view class="menu-item">
+    <view class="menu-item" bindtap="onRemind">
       <text class="menu-icon">☀️</text>
       <text class="menu-name">天气提醒</text>
       <text class="menu-arrow">›</text>
     </view>
-    <view class="menu-item">
+    <view class="menu-item" bindtap="onTyphoon">
       <text class="menu-icon">🌀</text>
-      <text class="menu-name">台风关注</text>
+      <text class="menu-name">台风追踪</text>
       <text class="menu-arrow">›</text>
     </view>
     <view class="menu-item" bindtap="onAbout">
